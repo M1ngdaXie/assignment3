@@ -7,7 +7,9 @@ import urllib3
 s3_client = boto3.client('s3')
 
 # Configuration - use environment variables
-BUCKET_NAME = os.environ['BUCKET_NAME'] 
+# Extract bucket name from ARN (format: arn:aws:s3:::bucket-name)
+BUCKET_ARN = os.environ.get('BUCKET_ARN', '')
+BUCKET_NAME = BUCKET_ARN.split(':::')[-1] if BUCKET_ARN else os.environ.get('BUCKET_NAME', '')
 API_ENDPOINT = os.environ.get('API_URL', '') 
 
 def lambda_handler(event, context):

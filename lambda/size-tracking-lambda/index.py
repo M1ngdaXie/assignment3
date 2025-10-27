@@ -9,6 +9,10 @@ s3_client = boto3.client('s3')
 dynamodb: Any = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
 
+# Extract bucket name from ARN (format: arn:aws:s3:::bucket-name)
+BUCKET_ARN = os.environ.get('BUCKET_ARN', '')
+BUCKET_NAME = BUCKET_ARN.split(':::')[-1] if BUCKET_ARN else os.environ.get('BUCKET_NAME', '')
+
 def lambda_handler(event, context):
     """
     Triggered by S3 events (create, update, delete).

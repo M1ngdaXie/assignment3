@@ -27,9 +27,19 @@ export class StorageStack extends cdk.Stack {
       description: "S3 Bucket Name",
     });
 
+    new cdk.CfnOutput(this, "BucketArn", {
+      value: this.bucket.bucketArn,
+      description: "S3 Bucket ARN",
+    });
+
     new cdk.CfnOutput(this, "TableName", {
       value: this.table.tableName,
       description: "DynamoDB Table Name",
+    });
+
+    new cdk.CfnOutput(this, "TableArn", {
+      value: this.table.tableArn,
+      description: "DynamoDB Table ARN",
     });
   }
 }

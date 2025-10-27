@@ -2,25 +2,30 @@ import * as cdk from "aws-cdk-lib";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import { Bucket } from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 
-// Remove the duplicate interface - keep only one with apiUrl
+// Use ARN strings instead of resource objects to avoid circular dependencies
 interface LambdaStackProps extends cdk.StackProps {
-  s3Bucket: Bucket;
-  dynamodbTable: Table;
+  bucketArn: string;
+  bucketName: string;
+  tableArn: string;
+  tableName: string;
   apiUrl?: string; // Optional because it might not exist on first deploy
 }
 
 export class LambdaStack extends cdk.Stack {
   public readonly plottingLambda: lambda.Function;
   public readonly driverLambda: lambda.Function;
+  public readonly sizeTrackingLambda: lambda.Function;
 
   constructor(scope: cdk.App, id: string, props: LambdaStackProps) {
-    // Remove the ? to make props required
     super(scope, id, props);
 
-    const sizetrackinglambda = new lambda.Function(
+    // Import bucket and table from ARNs
+    const bucket = s3.Bucket.fromBucketArn(this, "ImportedBucket", props.bucketArn);
+    const table = Table.fromTableArn(this, "ImportedTable", props.tableArn);
+
+    this.sizeTrackingLambda = new lambda.Function(
       this,
       "SizeTrackingLambda",
       {
@@ -30,25 +35,25 @@ export class LambdaStack extends cdk.Stack {
         architecture: lambda.Architecture.ARM_64,
         timeout: cdk.Duration.seconds(30),
         environment: {
-          BUCKET_NAME: props.s3Bucket.bucketName,
-          TABLE_NAME: props.dynamodbTable.tableName,
+          BUCKET_ARN: props.bucketArn,
+          TABLE_NAME: props.tableName,
         },
       }
     );
 
     // Grant permissions
-    props.s3Bucket.grantRead(sizetrackinglambda);
-    props.dynamodbTable.grantReadWriteData(sizetrackinglambda);
+    bucket.grantRead(this.sizeTrackingLambda);
+    table.grantReadWriteData(this.sizeTrackingLambda);
 
     // Add S3 event notifications
-    props.s3Bucket.addEventNotification(
+    bucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
-      new s3n.LambdaDestination(sizetrackinglambda)
+      new s3n.LambdaDestination(this.sizeTrackingLambda)
     );
 
-    props.s3Bucket.addEventNotification(
+    bucket.addEventNotification(
       s3.EventType.OBJECT_REMOVED,
-      new s3n.LambdaDestination(sizetrackinglambda)
+      new s3n.LambdaDestination(this.sizeTrackingLambda)
     );
 
     // Plotting Lambda with matplotlib layer
@@ -66,16 +71,20 @@ export class LambdaStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(60),
       memorySize: 512,
       environment: {
-        BUCKET_NAME: props.s3Bucket.bucketName,
-        TABLE_NAME: props.dynamodbTable.tableName,
+        BUCKET_ARN: props.bucketArn,
+        TABLE_NAME: props.tableName,
       },
       layers: [matplotlibLayer],
     });
 
-    props.dynamodbTable.grantReadData(this.plottingLambda);
-    props.s3Bucket.grantWrite(this.plottingLambda);
+    table.grantReadData(this.plottingLambda);
+    bucket.grantWrite(this.plottingLambda);
 
     // Driver Lambda
+    // Import API URL from ApiStack export (will be available after ApiStack is deployed)
+    // On first deploy, this will be empty. Redeploy LambdaStack after ApiStack is created.
+    const apiUrl = cdk.Fn.importValue("PlottingApiUrl");
+
     this.driverLambda = new lambda.Function(this, "DriverLambda", {
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: "index.lambda_handler",
@@ -83,18 +92,18 @@ export class LambdaStack extends cdk.Stack {
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.seconds(120),
       environment: {
-        BUCKET_NAME: props.s3Bucket.bucketName,
-        TABLE_NAME: props.dynamodbTable.tableName,
-        API_URL: props.apiUrl || "",
+        BUCKET_ARN: props.bucketArn,
+        TABLE_NAME: props.tableName,
+        API_URL: apiUrl,
       },
     });
 
-    props.s3Bucket.grantReadWrite(this.driverLambda);
+    bucket.grantReadWrite(this.driverLambda);
     this.plottingLambda.grantInvoke(this.driverLambda);
 
     // Outputs
     new cdk.CfnOutput(this, "SizeTrackingLambdaName", {
-      value: sizetrackinglambda.functionName,
+      value: this.sizeTrackingLambda.functionName,
       description: "Size Tracking Lambda Function Name",
     });
 

@@ -14,8 +14,9 @@ s3_client = boto3.client('s3')
 dynamodb: Any = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
 
-# Configuration
-BUCKET_NAME = os.environ['BUCKET_NAME']
+# Configuration - Extract bucket name from ARN (format: arn:aws:s3:::bucket-name)
+BUCKET_ARN = os.environ.get('BUCKET_ARN', '')
+BUCKET_NAME = BUCKET_ARN.split(':::')[-1] if BUCKET_ARN else os.environ.get('BUCKET_NAME', '')
 
 def decimal_to_float(obj):
     """Helper function to convert Decimal to float for JSON serialization"""
