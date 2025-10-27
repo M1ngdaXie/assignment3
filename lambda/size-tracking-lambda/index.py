@@ -1,11 +1,13 @@
 import boto3
 import json
+import os
 import time
 from decimal import Decimal
+from typing import Any
 
 s3_client = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('S3-object-size-history')
+dynamodb: Any = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['TABLE_NAME'])
 
 def lambda_handler(event, context):
     """
@@ -73,7 +75,7 @@ def lambda_handler(event, context):
     try:
         table.put_item(
             Item={
-                'bucket_name': bucket_name,
+                'bucketName': bucket_name,
                 'timestamp': current_timestamp,
                 'total_size': total_size,
                 'object_count': object_count
@@ -93,7 +95,7 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps({
             'message': 'Size tracking completed',
-            'bucket_name': bucket_name,
+            'bucketName': bucket_name,
             'total_size': total_size,
             'object_count': object_count,
             'timestamp': float(current_timestamp)

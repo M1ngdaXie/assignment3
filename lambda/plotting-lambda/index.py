@@ -1,19 +1,21 @@
 import boto3
 import json
+import os
 import time
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import io
 
 s3_client = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('S3-object-size-history')
+dynamodb: Any = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['TABLE_NAME'])
 
 # Configuration
-BUCKET_NAME = 'testbucket-cloud-app-123456'
+BUCKET_NAME = os.environ['BUCKET_NAME']
 
 def decimal_to_float(obj):
     """Helper function to convert Decimal to float for JSON serialization"""
@@ -31,11 +33,11 @@ def lambda_handler(event, context):
     
     current_time = Decimal(str(time.time()))
     twenty_seconds_ago = current_time - Decimal('20')
-    
-    # Query items from last 20 seconds
+
+    # Query items from last 20 seconds (to capture all 4 driver operations)
     try:
         response = table.query(
-            KeyConditionExpression='bucket_name = :bn AND #ts >= :start_time',
+            KeyConditionExpression='bucketName = :bn AND #ts >= :start_time',
             ExpressionAttributeNames={
                 '#ts': 'timestamp'
             },
@@ -44,7 +46,7 @@ def lambda_handler(event, context):
                 ':start_time': twenty_seconds_ago
             }
         )
-        
+
         recent_items = response['Items']
         print(f"Found {len(recent_items)} items in last 20 seconds")
         
@@ -58,7 +60,7 @@ def lambda_handler(event, context):
     # Query all items to find maximum size ever
     try:
         response_all = table.query(
-            KeyConditionExpression='bucket_name = :bn',
+            KeyConditionExpression='bucketName = :bn',
             ExpressionAttributeValues={
                 ':bn': BUCKET_NAME
             }
@@ -83,11 +85,12 @@ def lambda_handler(event, context):
             'body': json.dumps('No data available in last 20 seconds to plot')
         }
     
-    # Sort by timestamp and take only the first 4 entries
+    # Sort by timestamp - use ALL items, don't limit to 4
     sorted_items = sorted(recent_items, key=lambda x: float(x['timestamp']))
-    filtered_items = sorted_items[:4]
+    # REMOVED: filtered_items = sorted_items[:4]  
+    filtered_items = sorted_items  # FIXED: Use all items from last 10 seconds
     
-    print(f"Using first {len(filtered_items)} items for plotting")
+    print(f"Using {len(filtered_items)} items for plotting")
     for item in filtered_items:
         print(f"  Timestamp: {item['timestamp']}, Size: {item['total_size']}, Count: {item['object_count']}")
     
@@ -115,7 +118,7 @@ def lambda_handler(event, context):
     # Labels and formatting
     plt.xlabel('Time (seconds)', fontsize=12)
     plt.ylabel('Size (bytes)', fontsize=12)
-    plt.title(f'S3 Bucket Size Change - Last 10 Seconds\n{BUCKET_NAME}', fontsize=14)
+    plt.title(f'S3 Bucket Size Change - Last 20 Seconds\n{BUCKET_NAME}', fontsize=14)
     plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3)
     

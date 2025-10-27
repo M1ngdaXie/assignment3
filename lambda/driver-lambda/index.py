@@ -1,13 +1,14 @@
 import boto3
 import json
+import os 
 import time
 import urllib3
 
 s3_client = boto3.client('s3')
 
-# Configuration
-BUCKET_NAME = 'testbucket-cloud-app-123456'  
-API_ENDPOINT = 'https://u5j74ylbmg.execute-api.us-east-1.amazonaws.com/prod/plot'  
+# Configuration - use environment variables
+BUCKET_NAME = os.environ['BUCKET_NAME'] 
+API_ENDPOINT = os.environ.get('API_URL', '') 
 
 def lambda_handler(event, context):
     """
@@ -18,8 +19,9 @@ def lambda_handler(event, context):
     4. Create assignment2.txt
     5. Call plotting API
     """
-    
     print("Starting driver lambda...")
+    print(f"Using bucket: {BUCKET_NAME}")
+    print(f"Using API: {API_ENDPOINT}")
     
     # Step 1: Create object assignment1.txt
     print("\n=== Step 1: Creating assignment1.txt ===")
@@ -29,13 +31,13 @@ def lambda_handler(event, context):
             Key='assignment1.txt',
             Body='Empty Assignment 1'
         )
-        print("✓ Created assignment1.txt (18 bytes)")
+        print("✓ Created assignment1.txt (19 bytes)")
     except Exception as e:
         print(f"✗ Error creating assignment1.txt: {e}")
         return {'statusCode': 500, 'body': str(e)}
     
     # Sleep to space out the operations
-    print("Sleeping for 2 seconds...")
+    print("Sleeping for 4 seconds...")
     time.sleep(4)
     
     # Step 2: Update object assignment1.txt
@@ -46,13 +48,13 @@ def lambda_handler(event, context):
             Key='assignment1.txt',
             Body='Empty Assignment 2222222222'
         )
-        print("✓ Updated assignment1.txt (27 bytes)")
+        print("✓ Updated assignment1.txt (28 bytes)")
     except Exception as e:
         print(f"✗ Error updating assignment1.txt: {e}")
         return {'statusCode': 500, 'body': str(e)}
     
     # Sleep
-    print("Sleeping for 2 seconds...")
+    print("Sleeping for 4 seconds...")
     time.sleep(4)
     
     # Step 3: Delete object assignment1.txt
@@ -68,7 +70,7 @@ def lambda_handler(event, context):
         return {'statusCode': 500, 'body': str(e)}
     
     # Sleep
-    print("Sleeping for 2 seconds...")
+    print("Sleeping for 4 seconds...")
     time.sleep(4)
     
     # Step 4: Create object assignment2.txt
@@ -90,22 +92,24 @@ def lambda_handler(event, context):
     
     # Step 5: Call the plotting lambda API
     print("\n=== Step 5: Calling plotting API ===")
-    try:
-        http = urllib3.PoolManager()
-        response = http.request('GET', API_ENDPOINT)
-        
-        print(f"API Response Status: {response.status}")
-        print(f"API Response Body: {response.data.decode('utf-8')}")
-        
-        if response.status == 200:
-            print("✓ Successfully called plotting API")
-        else:
-            print(f"⚠ API returned status code: {response.status}")
+    if not API_ENDPOINT:
+        print("⚠ API_ENDPOINT not configured, skipping API call")
+    else:
+        try:
+            http = urllib3.PoolManager()
+            response = http.request('GET', API_ENDPOINT)
             
-    except Exception as e:
-        print(f"✗ Error calling plotting API: {e}")
-        print("Note: Make sure API_ENDPOINT is correctly configured")
-        return {'statusCode': 500, 'body': str(e)}
+            print(f"API Response Status: {response.status}")
+            print(f"API Response Body: {response.data.decode('utf-8')}")
+            
+            if response.status == 200:
+                print("✓ Successfully called plotting API")
+            else:
+                print(f"⚠ API returned status code: {response.status}")
+                
+        except Exception as e:
+            print(f"✗ Error calling plotting API: {e}")
+            return {'statusCode': 500, 'body': str(e)}
     
     print("\n=== Driver lambda completed successfully ===")
     
