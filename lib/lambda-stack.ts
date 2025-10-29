@@ -22,24 +22,24 @@ export class LambdaStack extends cdk.Stack {
     super(scope, id, props);
 
     // Import bucket and table from ARNs
-    const bucket = s3.Bucket.fromBucketArn(this, "ImportedBucket", props.bucketArn);
+    const bucket = s3.Bucket.fromBucketArn(
+      this,
+      "ImportedBucket",
+      props.bucketArn
+    );
     const table = Table.fromTableArn(this, "ImportedTable", props.tableArn);
 
-    this.sizeTrackingLambda = new lambda.Function(
-      this,
-      "SizeTrackingLambda",
-      {
-        runtime: lambda.Runtime.PYTHON_3_11,
-        handler: "index.lambda_handler",
-        code: lambda.Code.fromAsset("lambda/size-tracking-lambda"),
-        architecture: lambda.Architecture.ARM_64,
-        timeout: cdk.Duration.seconds(30),
-        environment: {
-          BUCKET_ARN: props.bucketArn,
-          TABLE_NAME: props.tableName,
-        },
-      }
-    );
+    this.sizeTrackingLambda = new lambda.Function(this, "SizeTrackingLambda", {
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: "index.lambda_handler",
+      code: lambda.Code.fromAsset("lambda/size-tracking-lambda"),
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        BUCKET_ARN: props.bucketArn,
+        TABLE_NAME: props.tableName,
+      },
+    });
 
     // Grant permissions
     bucket.grantRead(this.sizeTrackingLambda);
@@ -81,8 +81,8 @@ export class LambdaStack extends cdk.Stack {
     bucket.grantWrite(this.plottingLambda);
 
     // Driver Lambda
-    // Import API URL from ApiStack export (will be available after ApiStack is deployed)
-    // On first deploy, this will be empty. Redeploy LambdaStack after ApiStack is created.
+    // Import API URL from ApiStack export (automatically gets the value after ApiStack is deployed)
+    // Note: To destroy stacks, run: cdk destroy Assignment3-LambdaStack Assignment3-ApiStack Assignment3-StorageStack
     const apiUrl = cdk.Fn.importValue("PlottingApiUrl");
 
     this.driverLambda = new lambda.Function(this, "DriverLambda", {

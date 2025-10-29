@@ -8,6 +8,7 @@ interface ApiStackProps extends cdk.StackProps {
 
 export class ApiStack extends cdk.Stack {
   public readonly apiUrl: string;
+  public readonly apiArn: string;
 
   constructor(scope: cdk.App, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -39,12 +40,20 @@ export class ApiStack extends cdk.Stack {
     // api.root.addMethod("POST", plottingIntegration);
 
     this.apiUrl = api.url;
+    this.apiArn = api.arnForExecuteApi();
 
     // Output the API URL
     new cdk.CfnOutput(this, "ApiUrl", {
       value: this.apiUrl,
       description: "API Gateway URL",
       exportName: "PlottingApiUrl",
+    });
+
+    // Output the API ARN
+    new cdk.CfnOutput(this, "ApiArn", {
+      value: this.apiArn,
+      description: "API Gateway ARN",
+      exportName: "PlottingApiArn",
     });
   }
 }
