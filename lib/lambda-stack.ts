@@ -3,6 +3,7 @@ import { Table } from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
 
 // Use ARN strings instead of resource objects to avoid circular dependencies
 interface LambdaStackProps extends cdk.StackProps {
@@ -10,13 +11,15 @@ interface LambdaStackProps extends cdk.StackProps {
   bucketName: string;
   tableArn: string;
   tableName: string;
-  apiUrl?: string; // Optional because it might not exist on first deploy
+  // REMOVED: apiUrl?: string;
+  // We will add the API URL in the bin/assignment3.ts file after ApiStack is created.
 }
 
 export class LambdaStack extends cdk.Stack {
   public readonly plottingLambda: lambda.Function;
   public readonly driverLambda: lambda.Function;
   public readonly sizeTrackingLambda: lambda.Function;
+  public readonly apiUrl: string;
 
   constructor(scope: cdk.App, id: string, props: LambdaStackProps) {
     super(scope, id, props);
@@ -80,11 +83,31 @@ export class LambdaStack extends cdk.Stack {
     table.grantReadData(this.plottingLambda);
     bucket.grantWrite(this.plottingLambda);
 
-    // Driver Lambda
-    // Import API URL from ApiStack export (automatically gets the value after ApiStack is deployed)
-    // Note: To destroy stacks, run: cdk destroy Assignment3-LambdaStack Assignment3-ApiStack Assignment3-StorageStack
-    const apiUrl = cdk.Fn.importValue("PlottingApiUrl");
+    // API Gateway
+    const api = new apigateway.RestApi(this, "PlottingApi", {
+      restApiName: "Plotting Service",
+      description: "API for triggering plot generation",
+      deployOptions: {
+        stageName: "prod",
+      },
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+    });
 
+    const plottingIntegration = new apigateway.LambdaIntegration(
+      this.plottingLambda,
+      {
+        requestTemplates: { "application/json": '{ "statusCode": "200" }' },
+      }
+    );
+
+    api.root.addMethod("GET", plottingIntegration);
+
+    this.apiUrl = api.url;
+
+    // Driver Lambda
     this.driverLambda = new lambda.Function(this, "DriverLambda", {
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: "index.lambda_handler",
@@ -94,7 +117,7 @@ export class LambdaStack extends cdk.Stack {
       environment: {
         BUCKET_ARN: props.bucketArn,
         TABLE_NAME: props.tableName,
-        API_URL: apiUrl,
+        API_URL: this.apiUrl,
       },
     });
 
@@ -115,6 +138,11 @@ export class LambdaStack extends cdk.Stack {
     new cdk.CfnOutput(this, "DriverLambdaName", {
       value: this.driverLambda.functionName,
       description: "Driver Lambda Function Name",
+    });
+
+    new cdk.CfnOutput(this, "ApiUrl", {
+      value: this.apiUrl,
+      description: "API Gateway URL",
     });
   }
 }
