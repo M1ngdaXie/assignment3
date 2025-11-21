@@ -31,11 +31,11 @@ def lambda_handler(event, context):
     """
     
     print("Starting plotting lambda...")
-    
-    current_time = Decimal(str(time.time()))
-    twenty_seconds_ago = current_time - Decimal('20')
 
-    # Query items from last 20 seconds (to capture all 4 driver operations)
+    current_time = Decimal(str(time.time()))
+    twenty_seconds_ago = current_time - Decimal('300')
+
+    # Query items from last 300 seconds (5 minutes) to capture the full workflow
     try:
         response = table.query(
             KeyConditionExpression='bucketName = :bn AND #ts >= :start_time',
@@ -49,7 +49,7 @@ def lambda_handler(event, context):
         )
 
         recent_items = response['Items']
-        print(f"Found {len(recent_items)} items in last 20 seconds")
+        print(f"Found {len(recent_items)} items in last 300 seconds")
         
     except Exception as e:
         print(f"Error querying recent items: {e}")
@@ -80,10 +80,10 @@ def lambda_handler(event, context):
     
     # Check if we have data to plot
     if not recent_items:
-        print("No data to plot in last 20 seconds")
+        print("No data to plot in last 300 seconds")
         return {
             'statusCode': 200,
-            'body': json.dumps('No data available in last 20 seconds to plot')
+            'body': json.dumps('No data available in last 300 seconds to plot')
         }
     
     # Sort by timestamp - use ALL items, don't limit to 4
@@ -119,7 +119,7 @@ def lambda_handler(event, context):
     # Labels and formatting
     plt.xlabel('Time (seconds)', fontsize=12)
     plt.ylabel('Size (bytes)', fontsize=12)
-    plt.title(f'S3 Bucket Size Change - Last 20 Seconds\n{BUCKET_NAME}', fontsize=14)
+    plt.title(f'S3 Bucket Size Change - Last 5 Minutes\n{BUCKET_NAME}', fontsize=14)
     plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3)
     
